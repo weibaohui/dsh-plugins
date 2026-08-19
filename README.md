@@ -10,11 +10,15 @@
 
 ## 安装
 
-通过 `dsh plugin add` 从本仓库的子目录安装（`-w` 必需：`dsh plugin` 在 profile 目录内转发给 pnpm，而 profile 目录是一个 workspace root）：
+通过 `dsh plugin add` 从本仓库的子目录安装（`-w` 必需：`dsh plugin` 在 profile 目录内转发给 pnpm，而 profile 目录是一个 workspace root；子目录用 pnpm 的 `#path:` 语法，注意给 shell 加引号）：
 
 ```bash
-dsh plugin --profile web add github:weibaohui/dsh-plugins/scheduled-items -w
+dsh plugin --profile web add 'github:weibaohui/dsh-plugins#path:scheduled-items' -w
 ```
+
+已实测（dsh 0.1.0-rc.6 + pnpm 9）：安装后包自动调和进 `dsh.profile.bundles`，`dsh --profile web` 启动后 `/scheduled-items/api` 即可用。
+
+> 注意：`github:weibaohui/dsh-plugins/scheduled-items`（裸斜杠子目录）**不可用** —— pnpm 会把整段当作仓库名。子目录必须走 `#path:`。
 
 安装后 `dsh plugin` 会把包调和（reconcile）进 profile 的 `dsh.profile.bundles` 层列表：包内 `package.json` 声明 `dsh.bundle.patch`，其 `cordis.patch.yml` 把插件行插入宿主组合，`dsh.client` 声明让 web 外壳加载管理界面。
 
