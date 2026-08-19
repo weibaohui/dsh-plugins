@@ -6,6 +6,10 @@
   "type": "module",
   "keywords": ["deepseek", "dsh", "prompt", "hermes"],
   "license": "MIT",
+  "scripts": {
+    "check": "node --check src/index.js",
+    "test": "node --test test/*.test.mjs"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
