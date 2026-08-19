@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugin: [scheduled-items, hermes-prompt]
+        plugin: [scheduled-items, hermes-prompt, skills]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
