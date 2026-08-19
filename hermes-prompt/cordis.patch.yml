@@ -1,0 +1,8 @@
+# dsh-plugin-hermes-prompt bundle patch
+#
+# This file mounts the Hermes prompt framework into every agent session.
+# The prompt is injected as a system prompt section with order 50,
+# placing it after persona and before tool guidance.
+- insert:
+    - id: hermes-prompt
+      name: 'dsh-plugin-hermes-prompt'

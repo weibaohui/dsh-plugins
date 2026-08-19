@@ -1,0 +1,14 @@
+{
+  "name": "dsh-plugin-hermes-prompt",
+  "version": "0.1.0",
+  "description": "Hermes prompt framework: delivery discipline, skill/memory management, and anti-patterns",
+  "main": "src/index.js",
+  "type": "module",
+  "keywords": ["deepseek", "dsh", "prompt", "hermes"],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

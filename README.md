@@ -7,6 +7,7 @@
 | 目录 | 说明 |
 |---|---|
 | [`scheduled-items/`](scheduled-items/README.md) | cron 定时事项：每个事项带标题、提示词、croner 表达式，可绑定工作区；定时/立即执行时新建 agent 会话提交提示词，带全屏管理界面 |
+| [`hermes-prompt/`](hermes-prompt/README.md) | Hermes 提示词框架：向每个 agent 会话注入交付纪律、skill/memory 收尾沉淀规则与反面清单（system prompt section, order 50） |
 
 ## 安装
 
