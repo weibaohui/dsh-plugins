@@ -1,4 +1,4 @@
-# dsh-plugin-skills bundle patch: contributes the plugin row into the host
+# dsh-plugin-skills-management bundle patch: contributes the plugin row into the host
 # composition when this package is installed via `dsh plugin add`.
 #
 # The plugin is HOST-PLANE: it registers a skill provider on the host
@@ -8,5 +8,5 @@
 # an agent preset.
 
 - insert:
-    - id: skills-marketplace
-      name: 'dsh-plugin-skills'
+    - id: skills-management
+      name: 'dsh-plugin-skills-management'

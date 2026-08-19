@@ -1,13 +1,13 @@
 'use strict'
 
 /**
- * dsh-plugin-skills — Host half
+ * dsh-plugin-skills-management — Host half
  *
  * ntd skill marketplace for dsh: reads the ntd bundled skill collection
  * (`~/.ntd/bundled/skills` by default — a directory tree of GitHub skill
  * repos, one skill per directory holding a SKILL.md), serves it plus the
  * user's installed
- * library over an HTTP API under `/skills-marketplace/api`, and registers a
+ * library over an HTTP API under `/skills-management/api`, and registers a
  * `ctx.skills` provider so every listed skill is callable through the dsh
  * `skill` tool. Install copies a market skill directory into the user
  * library; delete removes it. The market tree is read-only.
@@ -279,7 +279,7 @@ function installDirName(fullName) {
 }
 
 module.exports = {
-  name: 'skills-marketplace',
+  name: 'skills-management',
   inject: ['skills', 'webServer'],
   /** Pure helpers exported for offline tests; not a runtime surface. */
   __internals: { extractFrontmatter, parseSkillMd, invocationPolicy, installDirName },
@@ -316,7 +316,7 @@ module.exports = {
           try {
             market.push(await readSkillEntry(entry))
           } catch (error) {
-            ctx.logger.warn(`skills-marketplace: skipping unreadable skill at ${entry.dir}: ${String((error && error.message) || error)}`)
+            ctx.logger.warn(`skills-management: skipping unreadable skill at ${entry.dir}: ${String((error && error.message) || error)}`)
           }
         }
       }
@@ -325,7 +325,7 @@ module.exports = {
         try {
           installed.push(await readSkillEntry(entry))
         } catch (error) {
-          ctx.logger.warn(`skills-marketplace: skipping unreadable skill at ${entry.dir}: ${String((error && error.message) || error)}`)
+          ctx.logger.warn(`skills-management: skipping unreadable skill at ${entry.dir}: ${String((error && error.message) || error)}`)
         }
       }
       return { market, installed }
@@ -440,14 +440,14 @@ module.exports = {
     // ── HTTP API under the registered prefix ─────────────────────────────────
     ctx.effect(() => ctx.webServer.register({
       kind: 'prefix',
-      path: '/skills-marketplace/api',
+      path: '/skills-management/api',
       handler: async (req, res) => {
         try {
           const url = new URL(req.url || '/', 'http://dsh.local')
           const apiPath = url.pathname.replace(/\/+$/, '')
           const query = url.searchParams
 
-          if (req.method === 'GET' && apiPath.endsWith('/skills-marketplace/api')) {
+          if (req.method === 'GET' && apiPath.endsWith('/skills-management/api')) {
             const { market, installed } = await discoverAll()
             const sources = new Map()
             for (const row of market) {
@@ -485,7 +485,7 @@ module.exports = {
             return
           }
 
-          if (req.method === 'GET' && apiPath.endsWith('/skills-marketplace/api/detail')) {
+          if (req.method === 'GET' && apiPath.endsWith('/skills-management/api/detail')) {
             const name = query.get('name') || ''
             let dir
             try {
@@ -526,7 +526,7 @@ module.exports = {
             return
           }
 
-          if (req.method === 'GET' && apiPath.endsWith('/skills-marketplace/api/file')) {
+          if (req.method === 'GET' && apiPath.endsWith('/skills-management/api/file')) {
             const name = query.get('name') || ''
             const path = query.get('path') || ''
             let dir
@@ -550,7 +550,7 @@ module.exports = {
             return
           }
 
-          if (req.method === 'POST' && apiPath.endsWith('/skills-marketplace/api/install')) {
+          if (req.method === 'POST' && apiPath.endsWith('/skills-management/api/install')) {
             const body = await readJsonBody(req)
             if (typeof body.name !== 'string' || body.name === '') {
               sendJson(res, 400, { error: 'body must provide name' })
@@ -561,7 +561,7 @@ module.exports = {
             return
           }
 
-          if (req.method === 'DELETE' && apiPath.endsWith('/skills-marketplace/api')) {
+          if (req.method === 'DELETE' && apiPath.endsWith('/skills-management/api')) {
             const body = await readJsonBody(req)
             if (typeof body.name !== 'string' || body.name === '') {
               sendJson(res, 400, { error: 'body must provide name' })
@@ -576,7 +576,7 @@ module.exports = {
           sendJson(res, 400, { error: String((error && error.message) || error) })
         }
       },
-    }), 'skills-marketplace: api route')
+    }), 'skills-management: api route')
 
     /** Content-type guess for served skill files. */
     function contentTypeFor(path) {

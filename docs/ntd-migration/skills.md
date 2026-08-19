@@ -52,7 +52,7 @@ ctx.skills.registerProvider((control) => ntdSkillsProvider)
 
 **腿 2：webServer prefix route（管理界面的后端）**
 
-`/skills-marketplace/api` 下（照 scheduled-items 的 `/scheduled-items/api` 模式）：
+`/skills-management/api` 下（照 scheduled-items 的 `/scheduled-items/api` 模式）：
 
 | API | 对应 ntd | 说明 |
 |---|---|---|

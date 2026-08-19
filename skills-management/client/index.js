@@ -1,11 +1,11 @@
 /**
- * dsh-plugin-skills — Browser half
+ * dsh-plugin-skills-management — Browser half
  *
  * Registers a `settings.section` management page and a `sidebar.footer.action`
  * button opening the same surface as a full-page overlay. The page has two
  * tabs: the market (browse the ntd bundled collection by source, search,
  * open detail, install) and the installed library (list, delete). All data
- * comes from `fetch` on `/skills-marketplace/api`; the bundle runs in the
+ * comes from `fetch` on `/skills-management/api`; the bundle runs in the
  * real page, so a plain relative fetch reaches the host.
  *
  * Zero renderer-bound props hooks: everything is reached through the apply
@@ -13,7 +13,7 @@
  * `require("react")` is a platform module provided by the module loader.
  */
 
-const API = '/skills-marketplace/api'
+const API = '/skills-management/api'
 
 const LOCALE_NS = 'settings.skillsMarketplace'
 
@@ -112,7 +112,7 @@ const STYLE = `
 `
 
 module.exports = {
-  name: 'skills-marketplace-client',
+  name: 'skills-management-client',
   inject: ['slots'],
 
   apply(ctx) {
@@ -352,7 +352,7 @@ module.exports = {
     slots.inject('settings.section', () => slots.register(
       {
         name: 'settings.section',
-        id: 'skills-marketplace',
+        id: 'skills-management',
         order: 31,
         label: () => t('nav'),
         locale: LOCALE_NS,
@@ -364,7 +364,7 @@ module.exports = {
     slots.inject('sidebar.footer.action', () => slots.register(
       {
         name: 'sidebar.footer.action',
-        id: 'skills-marketplace',
+        id: 'skills-management',
         order: 31,
         locale: LOCALE_NS,
       },

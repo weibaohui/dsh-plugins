@@ -10,7 +10,7 @@ const plugin = require('../src/index.js')
 const { extractFrontmatter, parseSkillMd, invocationPolicy, installDirName } = plugin.__internals
 
 test('plugin exports the host-plane contract', () => {
-  assert.equal(plugin.name, 'skills-marketplace')
+  assert.equal(plugin.name, 'skills-management')
   assert.deepEqual(plugin.inject, ['skills', 'webServer'])
 })
 

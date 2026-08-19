@@ -25,7 +25,7 @@ const banner = `/* Generated from client/index.js by scripts/build-client.mjs â€
  * Regenerate with: npm run build:client
  */
 window.__ModuleLoader__.load({
-  id: "dsh-plugin-skills",
+  id: "dsh-plugin-skills-management",
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports

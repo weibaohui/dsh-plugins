@@ -1,4 +1,4 @@
-# dsh-plugin-skills
+# dsh-plugin-skills-management
 
 ntd 技能市场 for DeepSeek Harness：读取 ntd 的技能合集目录（默认 `~/.ntd/bundled/skills`，GitHub 开源技能仓库归档树），把全部技能注册到 dsh 的 SkillRegistry —— **模型直接通过 `skill` 工具按名调用** —— 并提供安装/删除/详情 HTTP API 与管理界面（市场浏览 + 已安装库双 tab）。
 
@@ -14,7 +14,7 @@ dsh plugin --profile web add 'github:weibaohui/dsh-plugins#path:skills' -w
 - **市场浏览**：递归扫描市场目录（跳过 `.git`/`node_modules`），按来源（GitHub 仓库）分组，搜索/筛选/分页；技能详情看 SKILL.md 全文与文件清单，单文件预览（含路径逃逸防护）。
 - **安装**：市场技能整目录复制进用户库 `$DSH_HOME/skills/<短名>/`；同名覆盖 = 更新（`overwrite`）。装完 `invalidate()`，`skill` 工具目录立即可见。
 - **删除**：仅用户库可删；市场目录只读。
-- **HTTP API**：`/skills-marketplace/api` 下 `GET /`（市场+已安装）、`GET /detail?name=`、`GET /file?name=&path=`、`POST /install`、`DELETE /`。
+- **HTTP API**：`/skills-management/api` 下 `GET /`（市场+已安装）、`GET /detail?name=`、`GET /file?name=&path=`、`POST /install`、`DELETE /`。
 
 ## 与 ntd 的差异
 
