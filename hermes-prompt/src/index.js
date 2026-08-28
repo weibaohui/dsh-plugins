@@ -123,6 +123,9 @@ export default {
       order: 50,
       text: HERMES_PROMPT,
     })
+    // Service marker so sibling plugins (hermes-loop) can detect installation
+    // via ctx.get('hermesPrompt', false) — no query API exists on systemPrompt.
+    ctx.provide('hermesPrompt', { version: '0.1.0' })
     ctx.logger.info('hermes-prompt: registered Hermes discipline framework')
   },
 }
