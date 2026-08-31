@@ -4,7 +4,17 @@
 
 ## 插件列表
 
-> **已拆出**：[`dsh-continue`](https://github.com/weibaohui/dsh-continue)（自动续跑）已迁移至独立仓库，npm 包 [`@weibaohui/dsh-continue`](https://www.npmjs.com/package/@weibaohui/dsh-continue)；[`dsh-plugin-scheduled-items`](https://github.com/weibaohui/dsh-plugin-scheduled-items) 同理。
+> **拆仓公告**：本合集的插件已全部迁移至独立仓库（npm 包均为 `@weibaohui/*` scope，安装方式 `dsh plugin --profile web add @weibaohui/<名字> -w`）：
+>
+> | 插件 | 仓库 | npm |
+> |---|---|---|
+> | 自动续跑 | [dsh-continue](https://github.com/weibaohui/dsh-continue) | [@weibaohui/dsh-continue](https://www.npmjs.com/package/@weibaohui/dsh-continue) |
+> | 会话同步 | [dsh-sync](https://github.com/weibaohui/dsh-sync) | [@weibaohui/dsh-sync](https://www.npmjs.com/package/@weibaohui/dsh-sync) |
+> | Hermes 循环 | [hermes-loop](https://github.com/weibaohui/hermes-loop) | [@weibaohui/hermes-loop](https://www.npmjs.com/package/@weibaohui/hermes-loop) |
+> | 定时事项 | [scheduled-items](https://github.com/weibaohui/scheduled-items) | [@weibaohui/scheduled-items](https://www.npmjs.com/package/@weibaohui/scheduled-items) |
+> | 技能市场 | [skills-management](https://github.com/weibaohui/skills-management) | [@weibaohui/skills-management](https://www.npmjs.com/package/@weibaohui/skills-management) |
+>
+> [`hermes-prompt`](hermes-prompt/) 仍保留在本仓库。
 
 | 目录 | 说明 |
 |---|---|
