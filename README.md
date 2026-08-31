@@ -4,6 +4,8 @@
 
 ## 插件列表
 
+> **已拆出**：[`dsh-continue`](https://github.com/weibaohui/dsh-continue)（自动续跑）已迁移至独立仓库，npm 包 [`@weibaohui/dsh-continue`](https://www.npmjs.com/package/@weibaohui/dsh-continue)；[`dsh-plugin-scheduled-items`](https://github.com/weibaohui/dsh-plugin-scheduled-items) 同理。
+
 | 目录 | 说明 |
 |---|---|
 | [`scheduled-items/`](scheduled-items/README.md) | cron 定时事项：每个事项带标题、提示词、croner 表达式，可绑定工作区；定时/立即执行时新建 agent 会话提交提示词，带全屏管理界面 |
