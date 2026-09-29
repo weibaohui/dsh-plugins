@@ -1,0 +1,8 @@
+# 中间产物（GITHUB_DAILY_KEEP_ARTIFACTS=1 时生成）
+.github-daily-artifacts/
+rest_window.jsonl
+
+# 报告输出
+full-report.md
+report-3d.md
+github-daily-report*.md
