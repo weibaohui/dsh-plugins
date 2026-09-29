@@ -9,16 +9,21 @@
 #
 # 依赖: gh (已登录)、curl、python3
 # 说明: 只统计 OWNER 名下、非 fork 的仓库(含私有); 只列 open 状态的 PR/issue。
+#       想看「最近 N 天含已关闭项」的窗口报告, 见 README 的 render3d.py / collect-rest.sh。
 #
 # 想每天自动跑, 加一条 crontab (crontab -e), 例如每天 9:00 生成报告:
 #   0 9 * * * /Users/weibh/projects/ts/dsh-plugins/github-daily.sh > ~/github-daily.md 2>/dev/null
 # 环境变量: GITHUB_DAILY_OWNER(账号) / GITHUB_DAILY_PROXY(默认 http://127.0.0.1:7897)
+#   GITHUB_DAILY_PROXY 指向不可用的代理时会自动回退直连并提示;
+#   设为空字符串则完全不走代理(不做任何探测)。
 
 set -euo pipefail
 
 OWNER="${GITHUB_DAILY_OWNER:-weibaohui}"
 API=https://api.github.com/graphql
-PROXY="${GITHUB_DAILY_PROXY:-http://127.0.0.1:7897}"
+# 用 ${VAR-default} 而非 ${VAR:-default}: 后者会把「显式设为空字符串」也替换成默认值，
+# 导致 README 写的「设为空字符串可直连」永远不生效。
+PROXY="${GITHUB_DAILY_PROXY-http://127.0.0.1:7897}"
 
 while getopts "u:h" opt; do
   case "$opt" in
@@ -32,18 +37,52 @@ command -v gh >/dev/null || { echo "缺少 gh，请先安装并 gh auth login" >
 
 TOKEN="$(gh auth token)" || { echo "未登录 gh，请先 gh auth login" >&2; exit 1; }
 
-# 走本地代理访问 GitHub(直连不通时)；失败则退回直连再试一次
+# 访问 GitHub 的本地代理(可选)。探活失败则自动回退直连，并把实际决定打印到 stderr，
+# 不做"悄悄失败"——上一版注释声称会回退，但代码里并没有这段逻辑。
+#   PROXY 为空字符串  -> 用户显式要求直连，跳过探测
+#   PROXY 非空        -> 先用 HEAD 探一次；通得过就用，通不过就回退直连
+PROXY_ACTIVE=0
+if [ -n "${PROXY:-}" ]; then
+  if curl -s -o /dev/null --max-time 3 -x "$PROXY" "$API" 2>/dev/null; then
+    PROXY_ACTIVE=1
+    echo "使用代理 $PROXY 访问 GitHub。" >&2
+  else
+    echo "代理 $PROXY 不可用，自动回退直连。" >&2
+  fi
+else
+  echo "GITHUB_DAILY_PROXY 为空，直接访问 GitHub。" >&2
+fi
+
 gql() {
   local payload_file="$1"
-  curl -sS --fail-with-body --max-time 60 \
-    -x "$PROXY" -X POST "$API" \
-    -H "Authorization: bearer $TOKEN" \
-    -H 'Content-Type: application/json' \
-    -d @"$payload_file"
+  # 注意: 不要用 proxy_args=() + "${proxy_args[@]}" 的写法——macOS 自带 bash 3.2 在
+  # set -u 下展开空数组会直接报 unbound variable。这里用 if/else 分支规避。
+  if [ "$PROXY_ACTIVE" = "1" ]; then
+    curl -sS --fail-with-body --max-time 60 \
+      -x "$PROXY" -X POST "$API" \
+      -H "Authorization: bearer $TOKEN" \
+      -H 'Content-Type: application/json' \
+      -d @"$payload_file"
+  else
+    curl -sS --fail-with-body --max-time 60 \
+      -X POST "$API" \
+      -H "Authorization: bearer $TOKEN" \
+      -H 'Content-Type: application/json' \
+      -d @"$payload_file"
+  fi
 }
 
 WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
+# GITHUB_DAILY_KEEP_ARTIFACTS=1 时保留中间产物(供 render3d.py 做时间窗过滤等二次渲染)，
+# 默认仍然用完即删。
+if [ "${GITHUB_DAILY_KEEP_ARTIFACTS:-0}" = "1" ]; then
+  KEEP_DIR="${GITHUB_DAILY_ARTIFACT_DIR:-$PWD/.github-daily-artifacts}"
+  mkdir -p "$KEEP_DIR"
+  trap 'cp -f "$WORKDIR"/* "$KEEP_DIR"/ 2>/dev/null || true; rm -rf "$WORKDIR"' EXIT
+  echo "中间产物将保留到 $KEEP_DIR" >&2
+else
+  trap 'rm -rf "$WORKDIR"' EXIT
+fi
 
 # ---------------------------------------------------------------- 第 1 步
 # 拉取仓库列表 + 每个仓库的 open PR/issue 数量。
@@ -79,7 +118,7 @@ json.dump({"query": query}, open(path, "w"))
 PY
 
   gql "$WORKDIR/page_req.json" > "$WORKDIR/page_resp.json" || {
-    echo "查询仓库列表失败(第 ${page} 页)。若代理不可用，可试 GITHUB_DAILY_PROXY= $0" >&2
+    echo "查询仓库列表失败(第 ${page} 页)。请检查网络或 gh 登录状态。" >&2
     exit 1
   }
 
