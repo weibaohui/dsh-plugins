@@ -32,6 +32,10 @@ CUTOFF="$(python3 -c "
 from datetime import datetime, timedelta, timezone
 print((datetime.now(timezone.utc) - timedelta(days=$DAYS)).strftime('%Y-%m-%dT%H:%M:%SZ'))
 ")"
+UPPER="$(python3 -c "
+from datetime import datetime, timezone
+print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+")"
 echo "窗口 cutoff = ${CUTOFF}；逐仓库拉取 state=all…" >&2
 
 # 首行写入本次采集的 cutoff，供 render3d.py 校验"这份 REST 数据是不是同一窗口采的"。
@@ -54,6 +58,9 @@ done < <(cut -f1 "${REPOS_TSV}") | python3 -c "
 import json, sys
 
 cutoff = '${CUTOFF}'
+# 上界: 采集时刻。GitHub REST 的 created_at 不会晚于采集时刻，但显式过滤可防止
+# 时钟偏移/未来时间戳把「窗口外的项」混进报告。
+upper = '${UPPER}'
 seen = {}
 for line in sys.stdin:
     line = line.strip()
@@ -65,7 +72,7 @@ for line in sys.stdin:
         continue
     if not isinstance(it, dict):
         continue
-    if it.get('created_at', '') < cutoff:
+    if it.get('created_at', '') < cutoff or it.get('created_at', '') > upper:
         continue
     repo = (it.get('repository_url') or '').rsplit('/', 1)[-1]
     if not repo:

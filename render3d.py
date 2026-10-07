@@ -155,13 +155,13 @@ def main():
         for n in (r.get("issues", {}).get("nodes") or []):
             issues.append((name, n))
 
-    win_pr = [(rn, n) for rn, n in prs if parse_iso(n["createdAt"]) >= cutoff]
-    win_iss = [(rn, n) for rn, n in issues if parse_iso(n["createdAt"]) >= cutoff]
+    gql_win_pr = [(rn, n) for rn, n in prs if parse_iso(n["createdAt"]) >= cutoff]
+    gql_win_iss = [(rn, n) for rn, n in issues if parse_iso(n["createdAt"]) >= cutoff]
 
     per_repo = {}
-    for rn, n in win_pr:
+    for rn, n in gql_win_pr:
         per_repo.setdefault(rn, {"PR": 0, "issue": 0})["PR"] += 1
-    for rn, n in win_iss:
+    for rn, n in gql_win_iss:
         per_repo.setdefault(rn, {"PR": 0, "issue": 0})["issue"] += 1
 
     open_all = sorted(
@@ -169,6 +169,86 @@ def main():
          for rn, n in (prs if k == "PR" else issues)],
         key=lambda x: x[1]["createdAt"],
     )
+    # 每行的 in_window 一律从 cutoff 重新计算，不硬编码。
+    # 附表只准收 state != open 的项；仍 open 的窗口内项属于「新待办」。
+    def in_window(iso):
+        return parse_iso(iso) >= cutoff
+
+    # 窗口外最年轻的一条（max createdAt < cutoff），用于边界自检的对照值。
+    out_of_window = [x for x in open_all
+                     if not in_window(x[1]["createdAt"])]
+    youngest_out = max(out_of_window, key=lambda x: x[1]["createdAt"],
+                       default=None)
+
+    # 三态拆分 —— 必须**跨通道合并去重**，不能只看一条通道：
+    #   - 窗口内「仍 open」的项：GraphQL 通道按定义只含当前 open 项，是这一态的权威；
+    #   - 窗口内「已关闭/已合并」的项：GraphQL 看不见，只能来自 REST state=all 通道；
+    #   同一个项可能两条通道都出现（例如 REST 也返回 state=open），
+    #   若各自计数会在总览表与等式校验之间自相矛盾（表里 2 项、等式里 0 项还打 ✓）。
+    # 故按 (repo, kind, number) 建 key 求并集，并以 REST 的 closed 态覆盖。
+    def _state(r):
+        return (r.get("state") or "").lower()
+
+    def _key(repo, kind, number):
+        return (repo, kind, int(number))
+
+    def _rest_kind(r):
+        return "PR" if r.get("kind") == "PR" else "issue"
+
+    rest_in_win = [r for r in rest_rows
+                   if cutoff <= parse_iso(r["created"]) <= now]
+    rest_open = [r for r in rest_in_win if _state(r) == "open"]
+    rest_closed = [r for r in rest_in_win if _state(r) in ("closed", "merged")]
+    rest_other = [r for r in rest_in_win
+                  if _state(r) not in ("open", "closed", "merged")]
+    if rest_other:
+        print(f"[警告] REST 通道有 {len(rest_other)} 项 state 既非 open 也非 "
+              f"closed/merged，已从统计中剔除："
+              f"{[r.get('state') for r in rest_other]}", file=sys.stderr)
+
+    gql_keys = {}
+    for rn, n in gql_win_pr:
+        gql_keys[_key(rn, "PR", n["number"])] = n
+    for rn, n in gql_win_iss:
+        gql_keys[_key(rn, "issue", n["number"])] = n
+    rest_win_keys = {_key(r["repo"], _rest_kind(r), r["number"]): r
+                     for r in rest_in_win}
+    closed_keys = {_key(r["repo"], _rest_kind(r), r["number"]): r
+                   for r in rest_closed}
+
+    union_keys = set(gql_keys) | set(rest_win_keys)
+    still_open_keys = union_keys - set(closed_keys)
+    total_in_win = len(union_keys)
+
+    def kind_split(keys):
+        pr = sum(1 for k in keys if k[1] == "PR")
+        return pr, len(keys) - pr
+
+    t_open_pr, t_open_is = kind_split(still_open_keys)
+    t_tot_pr, t_tot_is = kind_split(union_keys)
+    c_pr, c_is = kind_split(set(closed_keys))
+    merged = sum(1 for r in rest_closed if r.get("merged"))
+
+    # 展示用明细：仍 open 的窗口内项以 GraphQL 记录为准（字段更全），
+    # GraphQL 没有但 REST 说仍 open 的项也补进来（否则等于把它从报告里抹掉）。
+    def rest_as_node(r):
+        return {"number": r["number"], "title": r["title"],
+                "author": {"login": r.get("author") or "-"},
+                "createdAt": r["created"]}
+
+    def created_of(k):
+        # 注意不能写成 dict.get(k, rest_win_keys[k][...])：
+        # 默认值是**先求值再传参**，GraphQL 独有的 key 会在 rest_win_keys 里 KeyError。
+        if k in gql_keys:
+            return gql_keys[k]["createdAt"]
+        return rest_win_keys[k]["created"]
+
+    shown = {"PR": [], "issue": []}
+    for k in sorted(still_open_keys, key=created_of):
+        repo, kind, _num = k
+        node = gql_keys[k] if k in gql_keys else rest_as_node(rest_win_keys[k])
+        shown[kind].append((repo, node))
+    win_pr, win_iss = shown["PR"], shown["issue"]
 
     W = sys.stdout.write
     W(f"# {args.owner} 名下 GitHub 仓库 近 {args.days} 天 PR / issue 汇报\n\n")
@@ -181,12 +261,16 @@ def main():
       "+ REST per-repo `state=all`（含已关闭，权威枚举）\n\n")
 
     W("## 总览\n\n")
-    W("| 类别 | 窗口内新增且仍 open | 窗口内新增（含已关闭/已合并） |\n")
-    W("| --- | --- | --- |\n")
-    merged = sum(1 for r in rest_rows if r.get("merged"))
-    W(f"| PR | {len(win_pr)} | {merged} |\n")
-    W(f"| issue | {len(win_iss)} | {len(rest_rows) - merged} |\n")
-    W(f"| 合计 | {len(win_pr) + len(win_iss)} | {len(rest_rows)} |\n\n")
+    W("| 类别 | 窗口内新增且仍 open | 窗口内新增（含已关闭/已合并） | 窗口内已关闭/已合并 |\n")
+    W("| --- | --- | --- | --- |\n")
+    W(f"| PR | {t_open_pr} | {t_tot_pr} | {c_pr} |\n")
+    W(f"| issue | {t_open_is} | {t_tot_is} | {c_is} |\n")
+    W(f"| **合计** | **{len(still_open_keys)}** | **{total_in_win}** | "
+      f"**{len(closed_keys)}** |\n\n")
+    _eq_ok = total_in_win == len(still_open_keys) + len(closed_keys)
+    W(f"等式校验：新增 {total_in_win} = 仍 open {len(still_open_keys)} + "
+      f"已关闭/已合并 {len(closed_keys)} "
+      f"{'✓' if _eq_ok else '✗ 不一致，请核查'}\n\n")
 
     W("### 涉及仓库速览\n\n")
     if per_repo:
@@ -210,20 +294,21 @@ def main():
             W("无。\n")
         W("\n")
 
-    W("---\n\n## 附：窗口内另有活动（已关闭，非待办）\n\n")
+    W("---\n\n## 附：窗口内另有活动（已关闭/已合并，非待办）\n\n")
     W("脚本口径为「仅统计当前 OPEN」。以下项目在窗口内创建并已在窗口内关闭/合并，\n")
     W("故不计入上方合计，列出以免把「0」误读为「期间无动态」。\n")
-    W("数据来自 REST 独立通道（per-repo `state=all` 权威枚举）。\n\n")
-    if rest_rows:
+    W("数据来自 REST 独立通道（per-repo `state=all` 权威枚举）；\n")
+    W("**本表只收 state != open 的项**，窗口内仍 open 的项已计入上方正文，不在此重复。\n\n")
+    if rest_closed:
         W("| 仓库 | 编号 | 标题 | 作者 | 创建 | 关闭/合并 | 结果 |\n")
         W("| --- | --- | --- | --- | --- | --- | --- |\n")
-        for r in sorted(rest_rows, key=lambda x: x.get("created", "")):
-            seg = "pull" if r.get("merged") else "issues"
+        for r in sorted(rest_closed, key=lambda x: x.get("created", "")):
+            seg = "pull" if r.get("kind") == "PR" else "issues"
             url = f"https://github.com/{args.owner}/{r['repo']}/{seg}/{r['number']}"
             if r.get("merged"):
                 outcome, closed = "已合并 (merged)", ts_cn(r["merged"])
             else:
-                reason = r.get("reason") or "n/a"
+                reason = r.get("reason") or "completed"
                 outcome = f"已关闭 ({reason})"
                 closed = ts_cn(r["closed"]) if r.get("closed") else "—"
             W(f"| [{r['repo']}](https://github.com/{args.owner}/{r['repo']}) | "
@@ -233,10 +318,35 @@ def main():
     else:
         W("无。\n\n")
 
+    if rest_open:
+        W("### 注：REST 通道中窗口内仍 open 的项（已计入正文，非附表）\n\n")
+        for r in rest_open:
+            kind = "PR" if r.get("kind") == "PR" else "issue"
+            seg = "pull" if kind == "PR" else "issues"
+            url = f"https://github.com/{args.owner}/{r['repo']}/{seg}/{r['number']}"
+            W(f"- [{r['repo']} #{r['number']}]({url})（{kind}，仍 open）\n")
+        W("\n")
+
     W("### 双通道交叉核对\n\n")
+    W("下表**逐条比对两条独立通道各自的窗口内 open 清单**（不做并集），\n")
+    W("不一致即说明取数有分歧，需按 fork / 口径范围排查后再下结论。\n\n")
     W("| 口径 | PR（窗口内 open） | issue（窗口内 open） |\n| --- | --- | --- |\n")
-    W(f"| GraphQL 中间产物通道（脚本口径） | {len(win_pr)} | {len(win_iss)} |\n")
-    W(f"| REST per-repo `state=all` 独立通道 | {len(win_pr)} | {len(win_iss)} |\n\n")
+    W(f"| GraphQL 中间产物通道（脚本口径） | {len(gql_win_pr)} | {len(gql_win_iss)} |\n")
+    rest_pr = sum(1 for r in rest_open if _rest_kind(r) == "PR")
+    rest_is = sum(1 for r in rest_open if _rest_kind(r) == "issue")
+    W(f"| REST per-repo `state=all` 独立通道 | {rest_pr} | {rest_is} |\n")
+    _pr_ok = len(gql_win_pr) == rest_pr
+    _is_ok = len(gql_win_iss) == rest_is
+    W(f"| 一致 | {'✓' if _pr_ok else '✗'} | {'✓' if _is_ok else '✗'} |\n")
+    if not (_pr_ok and _is_ok):
+        only_gql = set(gql_keys) - set(closed_keys) - set(
+            _key(r["repo"], _rest_kind(r), r["number"]) for r in rest_open)
+        only_rest = {_key(r["repo"], _rest_kind(r), r["number"])
+                     for r in rest_open} - set(gql_keys)
+        if only_gql or only_rest:
+            W(f"\n> 分歧明细：仅 GraphQL 通道有 {sorted(only_gql)}；"
+              f"仅 REST 通道有 {sorted(only_rest)}。\n")
+    W("\n")
 
     W("### 全量 open 积压（窗口外存量，非本窗口新增）\n\n")
     W(f"当前仍 open 共 **{len(open_all)} 项**"
@@ -248,17 +358,23 @@ def main():
         W(f"最久一项: [{rn} #{n['number']}]({url})「{n['title']}」，"
           f"已开启 {age_cn(n['createdAt'], now)}。\n")
     W("\n---\n\n## 边界自检\n\n")
-    if open_all:
-        rn, n, k = open_all[0]
-        W(f"窗口 cutoff = {cutoff.strftime('%Y-%m-%d %H:%M UTC')}；窗口外最年轻的一条 open 项"
-          f"距今 {age_cn(n['createdAt'], now)}，间隔越大 ⇒「窗口内 0 条 open」判定越无争议。\n\n")
+    if youngest_out:
+        rn, n, k = youngest_out
+        W(f"窗口 cutoff = {cutoff.strftime('%Y-%m-%d %H:%M UTC')}；窗口外**最年轻**的一条 open 项 "
+          f"[{rn} #{n['number']}](https://github.com/{args.owner}/{rn}/"
+          f"{'pull' if k == 'PR' else 'issues'}/{n['number']}) "
+          f"创建于 {n['createdAt']}，距今 {age_cn(n['createdAt'], now)}，"
+          f"仍落在 cutoff 之前 ⇒ 窗口边界成立。\n\n")
+    else:
+        W(f"窗口 cutoff = {cutoff.strftime('%Y-%m-%d %H:%M UTC')}；"
+          f"当前没有窗口外的 open 项可比对。\n\n")
     W("| 仓库 | 类型 | 编号 | createdAt (UTC) | in_window | 距今 |\n")
     W("| --- | --- | --- | --- | --- | --- |\n")
     for rn, n, k in open_all:
         seg = "pull" if k == "PR" else "issues"
         url = f"https://github.com/{args.owner}/{rn}/{seg}/{n['number']}"
-        W(f"| {rn} | {k} | [#{n['number']}]({url}) | {n['createdAt']} | False | "
-          f"{age_cn(n['createdAt'], now)} |\n")
+        W(f"| {rn} | {k} | [#{n['number']}]({url}) | {n['createdAt']} | "
+          f"{in_window(n['createdAt'])} | {age_cn(n['createdAt'], now)} |\n")
     return 0
 
 
